@@ -21,9 +21,15 @@ app.add_middleware(
 # Bot-Speicher
 active_bots = {}
 
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+# Stelle sicher, dass dein HTML im Ordner /static/index.html liegt
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
 @app.get("/")
-def root():
-    return {"message": "Travian Bot läuft auf Render!"}
+async def root():
+    return FileResponse("static/index.html")
 
 @app.post("/login")
 async def login(
