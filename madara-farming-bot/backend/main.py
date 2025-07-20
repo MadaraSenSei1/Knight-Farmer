@@ -2,12 +2,12 @@ from fastapi import FastAPI, Request, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
-from bot.travian_bot import TravianBot
+from bot.travian_bot import create_bot, start_bot, stop_bot
 import asyncio
 
 app = FastAPI()
 
-# CORS erlaubt Frontend-Zugriff
+# CORS-Konfiguration (für Browserzugriff aus dem Frontend)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,13 +16,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Travian Bot läuft auf Render!"}
+# Bot-Speicher
+active_bots = {}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=10000)
+@app.get("/")
+def root():
+    return {"message": "Travian Bot läuft auf Render!"}
 
 @app.post("/login")
 async def login(
@@ -35,61 +34,44 @@ async def login(
     proxy_pass: str = Form("")
 ):
     uid = str(uuid4())
+    proxy = None
 
-    bot = TravianBot(
-        username=username,
-        password=password,
-        server_url=server_url,
-        proxy={
-            "ip": proxy_ip,
-            "port": proxy_port,
-            "username": proxy_user,
-            "password": proxy_pass,
-        } if proxy_ip and proxy_port else None
-    )
+    if proxy_ip and proxy_port:
+        proxy = f"{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"{proxy_ip}:{proxy_port}"
 
-    success = bot.login()
-    if not success:
-        return JSONResponse(status_code=401, content={"error": "Login failed"})
-
-    farm_lists = bot.get_farm_lists()
-    bots[uid] = {"bot": bot, "task": None}
-
-    return {"uid": uid, "farm_lists": farm_lists}
+    try:
+        farm_lists = create_bot(uid, username, password, server_url, proxy)
+        active_bots[uid] = {
+            "status": "initialized",
+            "interval_task": None
+        }
+        return {"status": "success", "uid": uid, "farm_lists": farm_lists}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 @app.post("/start")
-async def start(uid: str = Form(...), interval_min: int = Form(...), interval_max: int = Form(...), randomize: bool = Form(False)):
-    if uid not in bots:
-        return JSONResponse(status_code=404, content={"error": "Bot not found"})
-
-    bot = bots[uid]["bot"]
-
-    async def farming_loop():
-        while True:
-            bot.run_farming()
-            wait_time = bot.get_next_wait_time(interval_min, interval_max, randomize)
-            await asyncio.sleep(wait_time)
-
-    bots[uid]["task"] = asyncio.create_task(farming_loop())
-    return {"status": "started"}
+async def start(uid: str = Form(...), min_interval: int = Form(...), max_interval: int = Form(...), random_offset: bool = Form(True)):
+    try:
+        start_bot(uid, min_interval, max_interval, random_offset)
+        active_bots[uid]["status"] = "running"
+        return {"status": "started"}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 @app.post("/stop")
 async def stop(uid: str = Form(...)):
-    if uid in bots and bots[uid]["task"]:
-        bots[uid]["task"].cancel()
-        bots[uid]["task"] = None
+    try:
+        stop_bot(uid)
+        active_bots[uid]["status"] = "stopped"
         return {"status": "stopped"}
-    return JSONResponse(status_code=404, content={"error": "Bot not running"})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
-@app.post("/status")
-async def status(uid: str = Form(...)):
-    bot_data = bots.get(uid)
-    if not bot_data:
-        return JSONResponse(status_code=404, content={"error": "No bot with this UID"})
-    is_running = bot_data["task"] is not None
-    return {"running": is_running}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=10000)
-
+@app.get("/status")
+async def status(uid: str):
+    try:
+        if uid in active_bots:
+            return {"status": active_bots[uid]["status"]}
+        return JSONResponse(status_code=404, content={"error": "UID not found"})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
