@@ -87,3 +87,8 @@ async def status(uid: str = Form(...)):
         return JSONResponse(status_code=404, content={"error": "No bot with this UID"})
     is_running = bot_data["task"] is not None
     return {"running": is_running}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=10000)
+
