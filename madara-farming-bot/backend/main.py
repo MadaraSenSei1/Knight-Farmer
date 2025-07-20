@@ -1,109 +1,89 @@
-
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
-import asyncio
-import time
 from bot.travian_bot import TravianBot
+import asyncio
 
 app = FastAPI()
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
-active_bots = {}
+# CORS für dein Frontend (z. B. localhost oder Render-Webseite)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class ProxyConfig(BaseModel):
-    ip: str
-    port: str
-    username: str
-    password: str
+# Aktive Bot-Instanzen verwalten
+bots = {}
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-    server_url: str
-    proxy: ProxyConfig | None = None
-
-class BotControlRequest(BaseModel):
-    account_id: str
-    interval_min: int
-    interval_max: int
-    random_delay: bool = True
+@app.get("/")
+async def root():
+    return {"status": "online"}
 
 @app.post("/login")
-async def login(data: LoginRequest):
-    account_id = str(uuid4())
+async def login(
+    username: str = Form(...),
+    password: str = Form(...),
+    server_url: str = Form(...),
+    proxy_ip: str = Form(""),
+    proxy_port: str = Form(""),
+    proxy_user: str = Form(""),
+    proxy_pass: str = Form("")
+):
+    uid = str(uuid4())
+
     bot = TravianBot(
-        username=data.username,
-        password=data.password,
-        server_url=data.server_url,
-        proxy=data.proxy.dict() if data.proxy else None
+        username=username,
+        password=password,
+        server_url=server_url,
+        proxy={
+            "ip": proxy_ip,
+            "port": proxy_port,
+            "username": proxy_user,
+            "password": proxy_pass,
+        } if proxy_ip and proxy_port else None
     )
 
-    success = await asyncio.to_thread(bot.login)
+    success = bot.login()
     if not success:
-        return JSONResponse(status_code=401, content={"detail": "Login failed"})
+        return JSONResponse(status_code=401, content={"error": "Login failed"})
 
-    farm_lists = await asyncio.to_thread(bot.get_farm_lists)
-    active_bots[account_id] = {
-        "bot": bot,
-        "task": None,
-        "next_run": None
-    }
+    farm_lists = bot.get_farm_lists()
+    bots[uid] = {"bot": bot, "task": None}
 
-    return {"account_id": account_id, "farm_lists": farm_lists}
+    return {"uid": uid, "farm_lists": farm_lists}
 
-@app.post("/start-bot")
-async def start_bot(data: BotControlRequest):
-    entry = active_bots.get(data.account_id)
-    if not entry:
-        return JSONResponse(status_code=404, content={"detail": "Bot not found"})
+@app.post("/start")
+async def start(uid: str = Form(...), interval_min: int = Form(...), interval_max: int = Form(...), randomize: bool = Form(False)):
+    if uid not in bots:
+        return JSONResponse(status_code=404, content={"error": "Bot not found"})
 
-    bot = entry["bot"]
+    bot = bots[uid]["bot"]
 
-    def update_next_run():
-        now = int(time.time())
-        wait_min = data.interval_min * 60
-        wait_max = data.interval_max * 60
-        wait_time = (wait_min + (wait_max - wait_min) * bot.random_float())
-        if data.random_delay:
-            wait_time += bot.random_offset()
-        entry["next_run"] = now + int(wait_time)
-        return wait_time
-
-    async def bot_loop():
+    async def farming_loop():
         while True:
-            await asyncio.to_thread(bot.send_farms)
-            wait_time = update_next_run()
+            bot.run_farming()
+            wait_time = bot.get_next_wait_time(interval_min, interval_max, randomize)
             await asyncio.sleep(wait_time)
 
-    task = asyncio.create_task(bot_loop())
-    entry["task"] = task
+    bots[uid]["task"] = asyncio.create_task(farming_loop())
+    return {"status": "started"}
 
-    return {"status": "Bot started"}
+@app.post("/stop")
+async def stop(uid: str = Form(...)):
+    if uid in bots and bots[uid]["task"]:
+        bots[uid]["task"].cancel()
+        bots[uid]["task"] = None
+        return {"status": "stopped"}
+    return JSONResponse(status_code=404, content={"error": "Bot not running"})
 
-@app.post("/stop-bot")
-async def stop_bot(data: BotControlRequest):
-    entry = active_bots.get(data.account_id)
-    if not entry:
-        return JSONResponse(status_code=404, content={"detail": "Bot not found"})
-
-    task = entry["task"]
-    if task:
-        task.cancel()
-        entry["task"] = None
-
-    return {"status": "Bot stopped"}
-
-@app.get("/bot-status")
-async def bot_status(account_id: str = Query(...)):
-    entry = active_bots.get(account_id)
-    if not entry:
-        return {"active": False}
-    task = entry.get("task")
-    is_active = task is not None and not task.done()
-    return {
-        "active": is_active,
-        "next_raid_timestamp": entry.get("next_run")
-    }
+@app.post("/status")
+async def status(uid: str = Form(...)):
+    bot_data = bots.get(uid)
+    if not bot_data:
+        return JSONResponse(status_code=404, content={"error": "No bot with this UID"})
+    is_running = bot_data["task"] is not None
+    return {"running": is_running}
