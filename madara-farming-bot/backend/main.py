@@ -75,9 +75,3 @@ async def status(uid: str):
         return JSONResponse(status_code=404, content={"error": "UID not found"})
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
-
-# ⛔ NICHT MEHR ENTHALTEN:
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=10000)
-# Render übernimmt das automatisch!
