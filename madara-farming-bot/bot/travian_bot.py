@@ -90,10 +90,14 @@ class TravianBot:
             self.driver.quit()
 
 def create_bot(uid, username, password, server_url, proxy=None):
-    bot = TravianBot(username, password, server_url, proxy)
-    bot.login()
-    bots[uid] = bot
-    return bot.get_farm_lists()
+    try:
+        bot = TravianBot(username, password, server_url, proxy)
+        bot.login()
+        bots[uid] = bot
+        return bot.get_farm_lists()
+    except Exception as e:
+        print(f"[ERROR] Login failed: {str(e)}")  # Zeigt echten Fehler in Render-Logs
+        raise Exception(f"Login failed: {str(e)}")  # Schickt echten Fehler ans Frontend
 
 def start_bot(uid, min_interval, max_interval, random_offset=True):
     if uid in bots:
