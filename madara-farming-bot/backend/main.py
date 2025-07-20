@@ -7,7 +7,7 @@ import asyncio
 
 app = FastAPI()
 
-# CORS für dein Frontend (z. B. localhost oder Render-Webseite)
+# CORS erlaubt Frontend-Zugriff
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,12 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Aktive Bot-Instanzen verwalten
-bots = {}
-
 @app.get("/")
-async def root():
-    return {"status": "online"}
+def read_root():
+    return {"message": "Travian Bot läuft auf Render!"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=10000)
 
 @app.post("/login")
 async def login(
