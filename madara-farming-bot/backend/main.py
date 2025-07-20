@@ -9,6 +9,10 @@ import asyncio
 
 app = FastAPI()
 
+@app.get("/")
+def read_root():
+    return {"status": "Bot läuft!"}
+
 # CORS-Konfiguration (für Browserzugriff aus dem Frontend)
 app.add_middleware(
     CORSMiddleware,
