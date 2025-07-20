@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Travian Farming Bot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+  <div class="container mx-auto">
+    <h1 class="text-3xl font-bold mb-6">Travian Farming Bot</h1>
+    <div id="accountsContainer" class="space-y-8"></div>
+    <button onclick="addAccount()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700">
+      ➕ Add Account
+    </button>
+  </div>
+  <script>
+    const botIntervals = {};
+    let accountCount = 0;
+
+    function addAccount() {
+      const container = document.getElementById("accountsContainer");
+      const id = `account-${accountCount++}`;
+      const html = `
+        <div id="${id}" class="bg-white p-6 rounded shadow space-y-4">
+          <h2 class="text-xl font-semibold mb-2">Travian Account</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <input placeholder="Username" class="border p-2 rounded" id="${id}-username">
+            <input placeholder="Password" type="password" class="border p-2 rounded" id="${id}-password">
+            <input placeholder="Server URL" class="col-span-2 border p-2 rounded" id="${id}-server">
+            <input placeholder="Proxy IP" class="border p-2 rounded" id="${id}-proxy-ip">
+            <input placeholder="Port" class="border p-2 rounded" id="${id}-proxy-port">
+            <input placeholder="Proxy Username" class="border p-2 rounded" id="${id}-proxy-user">
+            <input placeholder="Proxy Password" type="password" class="border p-2 rounded" id="${id}-proxy-pass">
+          </div>
+          <button onclick="login('${id}')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">🔐 Login</button>
+          <div class="mt-4 space-y-2 hidden" id="${id}-config">
+            <div class="grid grid-cols-2 gap-4">
+              <input type="number" placeholder="Min Interval (min)" class="border p-2 rounded" id="${id}-interval-min">
+              <input type="number" placeholder="Max Interval (min)" class="border p-2 rounded" id="${id}-interval-max">
+            </div>
+            <label class="flex items-center mt-2">
+              <input type="checkbox" class="mr-2" id="${id}-random-delay"> Randomize ±30s
+            </label>
+            <div class="flex items-center space-x-4 mt-4">
+              <button onclick="startBot('${id}')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">▶️ Start Bot</button>
+              <button onclick="stopBot('${id}')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">⏹️ Stop Bot</button>
+              <span id="${id}-countdown" class="text-sm text-gray-600"></span>
+            </div>
+            <div class="mt-4">
+              <h4 class="font-semibold">Farm List</h4>
+              <pre id="${id}-farm-list" class="bg-gray-100 p-2 rounded text-sm overflow-x-auto">Loading...</pre>
+            </div>
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML("beforeend", html);
+    }
+
+    async function login(id) {
+      const username = document.getElementById(`${id}-username`).value;
+      const password = document.getElementById(`${id}-password`).value;
+      const server_url = document.getElementById(`${id}-server`).value;
+      const proxy = {
+        ip: document.getElementById(`${id}-proxy-ip`).value,
+        port: document.getElementById(`${id}-proxy-port`).value,
+        username: document.getElementById(`${id}-proxy-user`).value,
+        password: document.getElementById(`${id}-proxy-pass`).value
+      };
+
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, server_url, proxy })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById(`${id}-config`).classList.remove("hidden");
+        document.getElementById(`${id}-farm-list`).textContent = JSON.stringify(data.farm_lists, null, 2);
+        alert("✅ Login successful!");
+      } else {
+        alert("❌ Login failed: " + data.detail);
+      }
+    }
+
+    async function pollBotStatus(id) {
+      if (botIntervals[id]) clearInterval(botIntervals[id]);
+      const res = await fetch(`/bot-status?account_id=${id}`);
+      const data = await res.json();
+      if (data.active && data.next_raid_timestamp) {
+        const el = document.getElementById(`${id}-countdown`);
+        botIntervals[id] = setInterval(() => {
+          const now = Math.floor(Date.now() / 1000);
+          const diff = data.next_raid_timestamp - now;
+          if (diff <= 0) {
+            el.textContent = "Sending next raid...";
+            clearInterval(botIntervals[id]);
+          } else {
+            const m = Math.floor(diff / 60);
+            const s = diff % 60;
+            el.textContent = `Next raid in ${m}m ${s}s`;
+          }
+        }, 1000);
+      }
+    }
+
+    function startBot(id) {
+      const interval_min = parseInt(document.getElementById(`${id}-interval-min`).value);
+      const interval_max = parseInt(document.getElementById(`${id}-interval-max`).value);
+      const random_delay = document.getElementById(`${id}-random-delay`).checked;
+      fetch('/start-bot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: id, interval_min, interval_max, random_delay })
+      }).then(() => pollBotStatus(id));
+    }
+
+    function stopBot(id) {
+      fetch('/stop-bot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: id })
+      });
+      document.getElementById(`${id}-countdown`).textContent = "Bot stopped.";
+    }
+  </script>
+</body>
+</html>
