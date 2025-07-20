@@ -1,129 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Travian Farming Bot</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travian Farming Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 p-4">
-  <div class="container mx-auto">
-    <h1 class="text-3xl font-bold mb-6">Travian Farming Bot</h1>
-    <div id="accountsContainer" class="space-y-8"></div>
-    <button onclick="addAccount()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700">
-      ➕ Add Account
-    </button>
-  </div>
-  <script>
-    const botIntervals = {};
-    let accountCount = 0;
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-start p-8">
+    <div class="w-full max-w-xl bg-white rounded-2xl shadow p-6">
+        <h1 class="text-2xl font-bold text-center mb-6">Travian Farming Bot</h1>
 
-    function addAccount() {
-      const container = document.getElementById("accountsContainer");
-      const id = `account-${accountCount++}`;
-      const html = `
-        <div id="${id}" class="bg-white p-6 rounded shadow space-y-4">
-          <h2 class="text-xl font-semibold mb-2">Travian Account</h2>
-          <div class="grid grid-cols-2 gap-4">
-            <input placeholder="Username" class="border p-2 rounded" id="${id}-username">
-            <input placeholder="Password" type="password" class="border p-2 rounded" id="${id}-password">
-            <input placeholder="Server URL" class="col-span-2 border p-2 rounded" id="${id}-server">
-            <input placeholder="Proxy IP" class="border p-2 rounded" id="${id}-proxy-ip">
-            <input placeholder="Port" class="border p-2 rounded" id="${id}-proxy-port">
-            <input placeholder="Proxy Username" class="border p-2 rounded" id="${id}-proxy-user">
-            <input placeholder="Proxy Password" type="password" class="border p-2 rounded" id="${id}-proxy-pass">
-          </div>
-          <button onclick="login('${id}')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">🔐 Login</button>
-          <div class="mt-4 space-y-2 hidden" id="${id}-config">
-            <div class="grid grid-cols-2 gap-4">
-              <input type="number" placeholder="Min Interval (min)" class="border p-2 rounded" id="${id}-interval-min">
-              <input type="number" placeholder="Max Interval (min)" class="border p-2 rounded" id="${id}-interval-max">
-            </div>
-            <label class="flex items-center mt-2">
-              <input type="checkbox" class="mr-2" id="${id}-random-delay"> Randomize ±30s
+        <!-- Login Form -->
+        <form id="loginForm" class="space-y-4">
+            <input type="text" name="username" placeholder="Username" class="w-full p-2 border rounded" required>
+            <input type="password" name="password" placeholder="Password" class="w-full p-2 border rounded" required>
+            <input type="text" name="server_url" placeholder="Server URL (z.B. https://ts1.travian.com)" class="w-full p-2 border rounded" required>
+            <div class="font-semibold text-gray-700">Proxy (optional):</div>
+            <input type="text" name="proxy_ip" placeholder="Proxy IP" class="w-full p-2 border rounded">
+            <input type="text" name="proxy_port" placeholder="Proxy Port" class="w-full p-2 border rounded">
+            <input type="text" name="proxy_user" placeholder="Proxy Username" class="w-full p-2 border rounded">
+            <input type="password" name="proxy_pass" placeholder="Proxy Password" class="w-full p-2 border rounded">
+            <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Login</button>
+        </form>
+
+        <!-- After Login -->
+        <div id="botControls" class="mt-6 hidden">
+            <div class="text-sm mb-2 font-semibold text-green-600" id="loginStatus"></div>
+            <label class="block text-gray-700">Min Interval (Sekunden)</label>
+            <input type="number" id="min_interval" class="w-full p-2 border rounded" required>
+
+            <label class="block text-gray-700 mt-2">Max Interval (Sekunden)</label>
+            <input type="number" id="max_interval" class="w-full p-2 border rounded" required>
+
+            <label class="inline-flex items-center mt-4">
+                <input type="checkbox" id="random_offset" class="mr-2">
+                Zufälliger Offset (±30 Sek)
             </label>
-            <div class="flex items-center space-x-4 mt-4">
-              <button onclick="startBot('${id}')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">▶️ Start Bot</button>
-              <button onclick="stopBot('${id}')" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">⏹️ Stop Bot</button>
-              <span id="${id}-countdown" class="text-sm text-gray-600"></span>
+
+            <div class="flex space-x-4 mt-4">
+                <button id="startBtn" class="flex-1 bg-green-600 text-white p-2 rounded hover:bg-green-700">Start</button>
+                <button id="stopBtn" class="flex-1 bg-red-600 text-white p-2 rounded hover:bg-red-700">Stop</button>
             </div>
-            <div class="mt-4">
-              <h4 class="font-semibold">Farm List</h4>
-              <pre id="${id}-farm-list" class="bg-gray-100 p-2 rounded text-sm overflow-x-auto">Loading...</pre>
+
+            <div class="mt-4 text-center">
+                <span class="font-semibold">Bot-Status:</span>
+                <span id="botStatus" class="text-blue-700">Stopped</span>
             </div>
-          </div>
         </div>
-      `;
-      container.insertAdjacentHTML("beforeend", html);
-    }
+    </div>
 
-    async function login(id) {
-      const username = document.getElementById(`${id}-username`).value;
-      const password = document.getElementById(`${id}-password`).value;
-      const server_url = document.getElementById(`${id}-server`).value;
-      const proxy = {
-        ip: document.getElementById(`${id}-proxy-ip`).value,
-        port: document.getElementById(`${id}-proxy-port`).value,
-        username: document.getElementById(`${id}-proxy-user`).value,
-        password: document.getElementById(`${id}-proxy-pass`).value
-      };
+    <script>
+        const loginForm = document.getElementById("loginForm");
+        const botControls = document.getElementById("botControls");
+        const loginStatus = document.getElementById("loginStatus");
+        const botStatus = document.getElementById("botStatus");
+        let uid = null;
 
-      const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, server_url, proxy })
-      });
+        loginForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(loginForm);
+            const res = await fetch("/login", { method: "POST", body: formData });
+            const data = await res.json();
+            if (data.status === "success") {
+                uid = data.uid;
+                loginStatus.textContent = `Erfolgreich eingeloggt.`;
+                botControls.classList.remove("hidden");
+            } else {
+                alert("Login fehlgeschlagen: " + data.error);
+            }
+        };
 
-      const data = await res.json();
-      if (res.ok) {
-        document.getElementById(`${id}-config`).classList.remove("hidden");
-        document.getElementById(`${id}-farm-list`).textContent = JSON.stringify(data.farm_lists, null, 2);
-        alert("✅ Login successful!");
-      } else {
-        alert("❌ Login failed: " + data.detail);
-      }
-    }
+        document.getElementById("startBtn").onclick = async () => {
+            const min = document.getElementById("min_interval").value;
+            const max = document.getElementById("max_interval").value;
+            const random = document.getElementById("random_offset").checked;
+            const formData = new FormData();
+            formData.append("uid", uid);
+            formData.append("min_interval", min);
+            formData.append("max_interval", max);
+            formData.append("random_offset", random);
+            const res = await fetch("/start", { method: "POST", body: formData });
+            const data = await res.json();
+            botStatus.textContent = data.status === "started" ? "Running" : "Error";
+        };
 
-    async function pollBotStatus(id) {
-      if (botIntervals[id]) clearInterval(botIntervals[id]);
-      const res = await fetch(`/bot-status?account_id=${id}`);
-      const data = await res.json();
-      if (data.active && data.next_raid_timestamp) {
-        const el = document.getElementById(`${id}-countdown`);
-        botIntervals[id] = setInterval(() => {
-          const now = Math.floor(Date.now() / 1000);
-          const diff = data.next_raid_timestamp - now;
-          if (diff <= 0) {
-            el.textContent = "Sending next raid...";
-            clearInterval(botIntervals[id]);
-          } else {
-            const m = Math.floor(diff / 60);
-            const s = diff % 60;
-            el.textContent = `Next raid in ${m}m ${s}s`;
-          }
-        }, 1000);
-      }
-    }
-
-    function startBot(id) {
-      const interval_min = parseInt(document.getElementById(`${id}-interval-min`).value);
-      const interval_max = parseInt(document.getElementById(`${id}-interval-max`).value);
-      const random_delay = document.getElementById(`${id}-random-delay`).checked;
-      fetch('/start-bot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: id, interval_min, interval_max, random_delay })
-      }).then(() => pollBotStatus(id));
-    }
-
-    function stopBot(id) {
-      fetch('/stop-bot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: id })
-      });
-      document.getElementById(`${id}-countdown`).textContent = "Bot stopped.";
-    }
-  </script>
+        document.getElementById("stopBtn").onclick = async () => {
+            const formData = new FormData();
+            formData.append("uid", uid);
+            const res = await fetch("/stop", { method: "POST", body: formData });
+            const data = await res.json();
+            botStatus.textContent = data.status === "stopped" ? "Stopped" : "Error";
+        };
+    </script>
 </body>
 </html>
