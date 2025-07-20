@@ -75,4 +75,5 @@ async def status(uid: str):
         return JSONResponse(status_code=404, content={"error": "UID not found"})
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
+
         
