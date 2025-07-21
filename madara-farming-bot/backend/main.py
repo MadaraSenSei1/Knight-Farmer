@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
 from bot.travian_bot import create_bot, start_bot, stop_bot
@@ -83,3 +85,10 @@ async def payment_success(request: Request):
         paid_users.add(uid)
         return {"message": "Bezahlung akzeptiert"}
     return JSONResponse(status_code=400, content={"error": "UID fehlt"})
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    with open("static/index.html", "r", encoding="utf-8") as f:
+        return f.read()
