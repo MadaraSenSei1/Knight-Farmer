@@ -47,18 +47,27 @@ async def login(
 ):
     uid = str(uuid4())
     proxy = None
-    if proxy_ip and proxy_port:
-        proxy = f"http://{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"http://{proxy_ip}:{proxy_port}"
 
-    try:
+     try:
+        if proxy_ip and proxy_port:
+            proxy = f"http://{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"http://{proxy_ip}:{proxy_port}"
+
+        # 🛠 Test Logging
+        print(f"[LOGIN] UID={uid}, SERVER={server_url}, PROXY={proxy}")
+
         farm_lists = create_bot(uid, username, password, server_url, proxy)
+
         active_bots[uid] = {"status": "initialized"}
-        return {"status": "success", "uid": uid, "farm_lists": farm_lists}
+        return {
+            "status": "success",
+            "uid": uid,
+            "farm_lists": farm_lists
+        }
+
     except Exception as e:
+        print("LOGIN ERROR:", str(e))  # <--- wichtig für Diagnose
         return JSONResponse(status_code=500, content={"error": str(e)})
-        except Exception as e:
-    print("LOGIN ERROR:", str(e))  # füge Logging hinzu
-    return JSONResponse(status_code=500, content={"error": str(e)})
+      
 
 @app.post("/start")
 async def start(
