@@ -1,17 +1,17 @@
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import JSONResponse
-from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
+import os
+from dotenv import load_dotenv
 from bot.travian_bot import create_bot, start_bot, stop_bot
+
+load_dotenv()
 
 app = FastAPI()
 
-# Statische Dateien (z. B. index.html)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# CORS erlauben
+# CORS config
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,11 +20,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Root HTML
+@app.get("/", response_class=HTMLResponse)
+async def read_index():
+    return FileResponse("static/index.html")
+
 active_bots = {}
 paid_users = set()
 
-@app.get("/")
-def root():
+@app.get("/status")
+async def status():
     return {"message": "Travian Bot Backend läuft"}
 
 @app.post("/login")
@@ -40,55 +48,42 @@ async def login(
     uid = str(uuid4())
     proxy = None
     if proxy_ip and proxy_port:
-        proxy = f"{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"{proxy_ip}:{proxy_port}"
+        proxy = f"http://{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"http://{proxy_ip}:{proxy_port}"
 
     try:
         farm_lists = create_bot(uid, username, password, server_url, proxy)
-        active_bots[uid] = {
-            "status": "initialized",
-            "interval_task": None
-        }
+        active_bots[uid] = {"status": "initialized"}
         return {"status": "success", "uid": uid, "farm_lists": farm_lists}
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
-
-@app.get("/pay")
-async def confirm_payment(uid: str):
-    paid_users.add(uid)
-    return {"status": "paid"}
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/start")
-async def start(uid: str = Form(...), min_interval: int = Form(...), max_interval: int = Form(...), random_offset: bool = Form(...)):
+async def start(
+    uid: str = Form(...),
+    min_interval: int = Form(...),
+    max_interval: int = Form(...),
+    random_offset: bool = Form(False)
+):
     if uid not in paid_users:
-        return JSONResponse(status_code=403, content={"error": "Zahlung erforderlich"})
+        return JSONResponse(status_code=403, content={"error": "Bezahlung erforderlich."})
 
     try:
         start_bot(uid, min_interval, max_interval, random_offset)
         active_bots[uid]["status"] = "running"
-        return {"status": "started"}
+        return {"status": "Bot gestartet"}
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/stop")
 async def stop(uid: str = Form(...)):
     try:
         stop_bot(uid)
         active_bots[uid]["status"] = "stopped"
-        return {"status": "stopped"}
+        return {"status": "Bot gestoppt"}
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.get("/status")
-async def status(uid: str):
-    try:
-        if uid in active_bots:
-            return {"status": active_bots[uid]["status"]}
-        return JSONResponse(status_code=404, content={"error": "UID nicht gefunden"})
-    except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
-        app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    with open("static/index.html", "r", encoding="utf-8") as f:
-        return f.read()
+@app.post("/payment/success")
+async def mark_paid(uid: str = Form(...)):
+    paid_users.add(uid)
+    return {"status": "paid"}
