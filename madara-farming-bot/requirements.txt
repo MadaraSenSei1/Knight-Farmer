@@ -1,9 +1,8 @@
 fastapi
 uvicorn
-aiohttp
-httpx
-pydantic
 selenium
 python-dotenv
-jinja2
-paypalrestsdk
+aiohttp
+requests
+python-multipart
+webdriver-manager
