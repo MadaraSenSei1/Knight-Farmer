@@ -47,7 +47,7 @@ async def login(
     try:
         uid = await travian_login(username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass)
         farm_lists = create_bot(uid, username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass)
-        active_bots[uid] = {"status": "initialized"}
+        active_bots[uid] = {"status": "initialized", "farm_lists": farm_lists}
         return {"status": "success", "uid": uid, "farm_lists": farm_lists}
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
