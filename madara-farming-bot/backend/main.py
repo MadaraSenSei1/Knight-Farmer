@@ -1,12 +1,13 @@
 from fastapi import FastAPI, Form, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from bot.travian_bot import create_bot, start_bot, stop_bot
+from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
-import os
+from bot.travian_bot import create_bot, start_bot, stop_bot
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
+
 app = FastAPI()
 
 app.add_middleware(
@@ -34,16 +35,12 @@ async def login(
     proxy_pass: str = Form("")
 ):
     uid = str(uuid4())
-
     proxy = None
+
     if proxy_ip and proxy_port:
-        if proxy_user and proxy_pass:
-            proxy = f"http://{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}"
-        else:
-            proxy = f"http://{proxy_ip}:{proxy_port}"
+        proxy = f"http://{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"http://{proxy_ip}:{proxy_port}"
 
     try:
-        print(f"[LOGIN] UID={uid}, USER={username}, SERVER={server_url}, PROXY={proxy}")
         farm_lists = create_bot(uid, username, password, server_url, proxy)
         active_bots[uid] = {"status": "initialized"}
         return {
@@ -52,7 +49,6 @@ async def login(
             "farm_lists": farm_lists
         }
     except Exception as e:
-        print("[LOGIN ERROR]", str(e))
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/start")
@@ -62,23 +58,28 @@ async def start(
     max_interval: int = Form(...),
     random_offset: bool = Form(False)
 ):
-    if uid not in active_bots:
-        return JSONResponse(status_code=403, content={"error": "Ungültiger Bot-Zugriff"})
+    if uid not in paid_users:
+        return JSONResponse(status_code=403, content={"error": "Bezahlung erforderlich."})
 
     try:
         start_bot(uid, min_interval, max_interval, random_offset)
-        active_bots[uid]["status"] = "running"
-        return {"status": "started"}
+        return {"status": "running"}
     except Exception as e:
-        print("[START ERROR]", str(e))
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/stop")
 async def stop(uid: str = Form(...)):
     try:
         stop_bot(uid)
-        active_bots[uid]["status"] = "stopped"
         return {"status": "stopped"}
     except Exception as e:
-        print("[STOP ERROR]", str(e))
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/payment_success")
+async def payment_success(request: Request):
+    data = await request.json()
+    uid = data.get("uid")
+    if uid:
+        paid_users.add(uid)
+        return {"message": "Bezahlung akzeptiert"}
+    return JSONResponse(status_code=400, content={"error": "UID fehlt"})
