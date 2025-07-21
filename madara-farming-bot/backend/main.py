@@ -34,16 +34,16 @@ def read_index():
     with open("static/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read(), status_code=200)
 
-@app.post("/login")
-async def login(
-    username: str = Form(...),
-    password: str = Form(...),
-    server_url: str = Form(...),
-    proxy_ip: str = Form(...),
-    proxy_port: str = Form(...),
-    proxy_user: str = Form(...),
-    proxy_pass: str = Form(...)
-):
+@app.post("/login", response_class=JSONResponse)
+const formData = new FormData(form);
+fetch("/login", {
+  method: "POST",
+  body: formData,
+})
+.then(response => response.json())
+.then(data => console.log(data))
+.catch(err => alert("Fehler: " + err));
+
     try:
         uid = await travian_login(username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass)
         farm_lists = create_bot(uid, username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass)
