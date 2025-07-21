@@ -29,16 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Speichert aktive Bots
-active_bots = {}
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-
 @app.get("/")
 def read_index():
     with open("static/index.html", "r", encoding="utf-8") as f:
