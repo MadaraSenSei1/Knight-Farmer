@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from uuid import uuid4
-from bot.travian_bot import create_bot, start_bot, stop_bot, get_next_raid_time
+from bot.travian_bot import create_bot, start_bot, stop_bot, get_next_raid_timestamp
 
 app = FastAPI()
 
