@@ -28,19 +28,22 @@ def read_index():
         return HTMLResponse(content=f.read(), status_code=200)
 
 @app.post("/login")
-async def login(
-    username: str = Form(...),
-    password: str = Form(...),
-    server_url: str = Form(...),
-    proxy_ip: str = Form(""),
-    proxy_port: str = Form(""),
-    proxy_user: str = Form(""),
-    proxy_pass: str = Form("")
-):
-    uid = str(uuid4())
-    proxy = None
-    if proxy_ip and proxy_port:
-        proxy = f"{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"{proxy_ip}:{proxy_port}"
+async def login(data: dict):
+    # Hole alle Daten aus dem `data`-Dict
+    username = data.get("username")
+    password = data.get("password")
+    server_url = data.get("server_url")
+    proxy_ip = data.get("proxy_ip")
+    proxy_port = data.get("proxy_port")
+    proxy_user = data.get("proxy_user")
+    proxy_pass = data.get("proxy_pass")
+
+    # Logik: Login in Travian durchführen
+    try:
+        uid = await travian_login(username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass)
+        return { "status": "success", "uid": uid }
+    except Exception as e:
+        return { "status": "error", "error": str(e) }
 
     try:
         farm_lists = create_bot(uid, username, password, server_url, proxy)
