@@ -4,150 +4,87 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Travian Farming Bot</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.paypal.com/sdk/js?client-id=AccZS6kT4eWWJklsYhrFFhVPhc5ecbmSZext6BFu0GTtwJETs8kyU6TA_0IUlyazAfHwWvwiaQI2wQto&currency=EUR&enable-funding=card"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #0f172a;
+      color: white;
+      text-align: center;
+      padding: 2rem;
+    }
+    .card {
+      background: #1e293b;
+      padding: 2rem;
+      margin: auto;
+      max-width: 500px;
+      border-radius: 1rem;
+      box-shadow: 0 0 10px #000;
+    }
+    #startBotBtn {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background: green;
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-900">
-  <div class="max-w-2xl mx-auto p-6 mt-10 bg-white rounded-2xl shadow-xl space-y-6">
-    <h1 class="text-3xl font-bold text-center">Travian Farming Bot</h1>
+<body>
+  <div class="card">
+    <h1>Travian Farming Bot</h1>
+    <p>Um den Bot zu aktivieren, zahle bitte 5 €.</p>
 
-    <!-- LOGIN FORM -->
-    <form id="loginForm" class="space-y-4">
-      <div class="grid grid-cols-2 gap-4">
-        <input type="text" name="username" placeholder="Username" required class="input" />
-        <input type="password" name="password" placeholder="Password" required class="input" />
-        <input type="text" name="server_url" placeholder="Server URL (e.g. https://ts1.travian.com)" required class="input col-span-2"/>
-      </div>
-      <h2 class="text-lg font-semibold mt-4">Optional Proxy</h2>
-      <div class="grid grid-cols-2 gap-4">
-        <input type="text" name="proxy_ip" placeholder="Proxy IP" class="input" />
-        <input type="text" name="proxy_port" placeholder="Proxy Port" class="input" />
-        <input type="text" name="proxy_user" placeholder="Proxy User" class="input" />
-        <input type="password" name="proxy_pass" placeholder="Proxy Pass" class="input" />
-      </div>
-      <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Login & Load Farm Lists</button>
-    </form>
+    <!-- PayPal Buttons -->
+    <div id="paypal-button-container"></div>
 
-    <!-- FARM LIST & BOT CONTROL -->
-    <div id="botControl" class="hidden space-y-4">
-      <div>
-        <label>Farm Lists loaded ✅</label>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <input type="number" id="minInterval" placeholder="Min Interval (sec)" class="input" />
-        <input type="number" id="maxInterval" placeholder="Max Interval (sec)" class="input" />
-      </div>
-      <label class="inline-flex items-center space-x-2">
-        <input type="checkbox" id="randomOffset" class="form-checkbox" checked>
-        <span>±30s random delay</span>
-      </label>
-      <div class="flex gap-4">
-        <button id="startBtn" class="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700">Start Bot</button>
-        <button id="stopBtn" class="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700">Stop Bot</button>
-      </div>
-      <div class="text-center text-sm text-gray-700 mt-2">
-        Bot Status: <span id="botStatus">Waiting...</span>
-        <br>
-        Next raid in: <span id="countdown">—</span>
-      </div>
-    </div>
+    <!-- Bot starten -->
+    <button id="startBotBtn" onclick="startBot()">Bot starten</button>
   </div>
 
   <script>
-    const loginForm = document.getElementById("loginForm");
-    const botControl = document.getElementById("botControl");
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const botStatus = document.getElementById("botStatus");
-    const countdown = document.getElementById("countdown");
-
-    let uid = "";
-    let countdownTimer = null;
-
-    loginForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(loginForm);
-      const response = await fetch("/login", {
-        method: "POST",
-        body: formData
-      });
-      const result = await response.json();
-
-      if (result.uid) {
-        uid = result.uid;
-        botControl.classList.remove("hidden");
-        loginForm.classList.add("hidden");
-        botStatus.textContent = "Ready";
-      } else {
-        alert("Login failed: " + (result.error || "Unknown error"));
+    // Render PayPal Smart Button
+    paypal.Buttons({
+      style: {
+        layout: 'vertical',
+        color: 'blue',
+        shape: 'rect',
+        label: 'paypal'
+      },
+      createOrder: function(data, actions) {
+        return actions.order.create({
+          purchase_units: [{
+            amount: {
+              value: '5.00'
+            },
+            description: "Travian Farming Bot Zugriff"
+          }]
+        });
+      },
+      onApprove: function(data, actions) {
+        return actions.order.capture().then(function(details) {
+          alert("Zahlung erfolgreich! Willkommen " + details.payer.name.given_name + "!");
+          document.getElementById("startBotBtn").style.display = "inline-block";
+          // TODO: Backend benachrichtigen: /api/payment/success oder user.paid = true
+        });
+      },
+      onCancel: function (data) {
+        alert("Zahlung abgebrochen.");
+      },
+      onError: function (err) {
+        console.error(err);
+        alert("Ein Fehler ist aufgetreten. Bitte versuche es erneut.");
       }
-    });
+    }).render('#paypal-button-container');
 
-    startBtn.addEventListener("click", async () => {
-      const min = document.getElementById("minInterval").value;
-      const max = document.getElementById("maxInterval").value;
-      const offset = document.getElementById("randomOffset").checked;
-
-      const form = new FormData();
-      form.append("uid", uid);
-      form.append("min_interval", min);
-      form.append("max_interval", max);
-      form.append("random_offset", offset);
-
-      const response = await fetch("/start", { method: "POST", body: form });
-      const result = await response.json();
-
-      if (result.status === "started") {
-        botStatus.textContent = "Running";
-        startCountdown(min, max, offset);
-      } else {
-        alert("Start failed: " + (result.error || "Unknown error"));
-      }
-    });
-
-    stopBtn.addEventListener("click", async () => {
-      const form = new FormData();
-      form.append("uid", uid);
-      const response = await fetch("/stop", { method: "POST", body: form });
-      const result = await response.json();
-
-      if (result.status === "stopped") {
-        botStatus.textContent = "Stopped";
-        clearInterval(countdownTimer);
-        countdown.textContent = "—";
-      } else {
-        alert("Stop failed: " + (result.error || "Unknown error"));
-      }
-    });
-
-    function startCountdown(min, max, randomize) {
-      function getRandomDelay() {
-        const minSec = parseInt(min, 10);
-        const maxSec = parseInt(max, 10);
-        let delay = Math.floor(Math.random() * (maxSec - minSec + 1)) + minSec;
-        if (randomize) delay += Math.floor(Math.random() * 30);
-        return delay;
-      }
-
-      let timeLeft = getRandomDelay();
-      countdown.textContent = timeLeft + "s";
-
-      countdownTimer = setInterval(() => {
-        timeLeft -= 1;
-        countdown.textContent = timeLeft + "s";
-        if (timeLeft <= 0) {
-          timeLeft = getRandomDelay();
-        }
-      }, 1000);
+    function startBot() {
+      alert("Bot wird jetzt gestartet...");
+      // Hier AJAX zu deinem Backend zum Starten
+      // Beispiel: fetch('/api/start-bot', ...)
     }
   </script>
-
-  <style>
-    .input {
-      padding: 0.5rem;
-      border: 1px solid #ccc;
-      border-radius: 0.5rem;
-      width: 100%;
-    }
-  </style>
 </body>
 </html>
