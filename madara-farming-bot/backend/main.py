@@ -1,5 +1,8 @@
 from fastapi import FastAPI, Form
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from bot.travian_bot import create_bot, start_bot, stop_bot
 from uuid import uuid4
