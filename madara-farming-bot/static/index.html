@@ -3,87 +3,92 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Travian Farming Bot</title>
-  <script src="https://www.paypal.com/sdk/js?client-id=AccZS6kT4eWWJklsYhrFFhVPhc5ecbmSZext6BFu0GTtwJETs8kyU6TA_0IUlyazAfHwWvwiaQI2wQto&currency=EUR&enable-funding=card"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #0f172a;
-      color: white;
-      text-align: center;
-      padding: 2rem;
-    }
-    .card {
-      background: #1e293b;
-      padding: 2rem;
-      margin: auto;
-      max-width: 500px;
-      border-radius: 1rem;
-      box-shadow: 0 0 10px #000;
-    }
-    #startBotBtn {
-      display: none;
-      margin-top: 1rem;
-      padding: 0.5rem 1rem;
-      background: green;
-      color: white;
-      border: none;
-      border-radius: 0.5rem;
-      cursor: pointer;
-    }
-  </style>
+  <title>Travian Bot</title>
+  <script src="https://www.paypal.com/sdk/js?client-id=AccZS6kT4eWWJklsYhrFFhVPhc5ecbmSZext6BFu0GTtwJETs8kyU6TA_0IUlyazAfHwWvwiaQI2wQto&currency=EUR"></script>
 </head>
 <body>
-  <div class="card">
-    <h1>Travian Farming Bot</h1>
-    <p>Um den Bot zu aktivieren, zahle bitte 5 €.</p>
+  <h1>Travian Farming Bot</h1>
 
-    <!-- PayPal Buttons -->
-    <div id="paypal-button-container"></div>
+  <form id="loginForm">
+    <input type="text" name="username" placeholder="Travian Username" required />
+    <input type="password" name="password" placeholder="Travian Password" required />
+    <input type="text" name="server_url" placeholder="https://ts1.travian.de" required />
+    <h4>Optional Proxy:</h4>
+    <input type="text" name="proxy_ip" placeholder="Proxy IP">
+    <input type="text" name="proxy_port" placeholder="Proxy Port">
+    <input type="text" name="proxy_user" placeholder="Proxy Username">
+    <input type="password" name="proxy_pass" placeholder="Proxy Password">
+    <button type="submit">Login</button>
+  </form>
 
-    <!-- Bot starten -->
-    <button id="startBotBtn" onclick="startBot()">Bot starten</button>
+  <div id="paypal-button-container" style="display:none;"></div>
+  <div id="farmLists" style="margin-top:20px;"></div>
+
+  <div id="botControl" style="display:none;">
+    <h3>Bot Control</h3>
+    <input type="number" id="min_interval" placeholder="Min (min)" />
+    <input type="number" id="max_interval" placeholder="Max (min)" />
+    <label><input type="checkbox" id="random_offset"> ±30s zufällig</label>
+    <button onclick="startBot()">Start Bot</button>
+    <button onclick="stopBot()">Stop Bot</button>
+    <p id="statusText"></p>
   </div>
 
   <script>
-    // Render PayPal Smart Button
-    paypal.Buttons({
-      style: {
-        layout: 'vertical',
-        color: 'blue',
-        shape: 'rect',
-        label: 'paypal'
-      },
-      createOrder: function(data, actions) {
-        return actions.order.create({
-          purchase_units: [{
-            amount: {
-              value: '5.00'
-            },
-            description: "Travian Farming Bot Zugriff"
-          }]
-        });
-      },
-      onApprove: function(data, actions) {
-        return actions.order.capture().then(function(details) {
-          alert("Zahlung erfolgreich! Willkommen " + details.payer.name.given_name + "!");
-          document.getElementById("startBotBtn").style.display = "inline-block";
-          // TODO: Backend benachrichtigen: /api/payment/success oder user.paid = true
-        });
-      },
-      onCancel: function (data) {
-        alert("Zahlung abgebrochen.");
-      },
-      onError: function (err) {
-        console.error(err);
-        alert("Ein Fehler ist aufgetreten. Bitte versuche es erneut.");
-      }
-    }).render('#paypal-button-container');
+    let uid = null;
+    let paid = false;
 
-    function startBot() {
-      alert("Bot wird jetzt gestartet...");
-      // Hier AJAX zu deinem Backend zum Starten
-      // Beispiel: fetch('/api/start-bot', ...)
+    document.getElementById('loginForm').onsubmit = async function (e) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const res = await fetch('/login', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (data.uid) {
+        uid = data.uid;
+        document.getElementById('farmLists').innerHTML = `<pre>${JSON.stringify(data.farm_lists, null, 2)}</pre>`;
+        document.getElementById('paypal-button-container').style.display = 'block';
+
+        paypal.Buttons({
+          createOrder: function(data, actions) {
+            return actions.order.create({
+              purchase_units: [{ amount: { value: '5.00' } }]
+            });
+          },
+          onApprove: function(data, actions) {
+            return actions.order.capture().then(function(details) {
+              paid = true;
+              document.getElementById('botControl').style.display = 'block';
+              alert('Bezahlung erfolgreich. Bot kann jetzt gestartet werden.');
+            });
+          }
+        }).render('#paypal-button-container');
+      } else {
+        alert(data.error || 'Login fehlgeschlagen');
+      }
+    };
+
+    async function startBot() {
+      if (!paid) return alert('Bitte zuerst bezahlen');
+      const min = document.getElementById('min_interval').value;
+      const max = document.getElementById('max_interval').value;
+      const random = document.getElementById('random_offset').checked;
+      const formData = new FormData();
+      formData.append('uid', uid);
+      formData.append('min_interval', min);
+      formData.append('max_interval', max);
+      formData.append('random_offset', random);
+      const res = await fetch('/start', { method: 'POST', body: formData });
+      const data = await res.json();
+      document.getElementById('statusText').innerText = data.status || data.error;
+    }
+
+    async function stopBot() {
+      const formData = new FormData();
+      formData.append('uid', uid);
+      const res = await fetch('/stop', { method: 'POST', body: formData });
+      const data = await res.json();
+      document.getElementById('statusText').innerText = data.status || data.error;
     }
   </script>
 </body>
