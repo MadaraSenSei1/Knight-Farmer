@@ -56,6 +56,9 @@ async def login(
         return {"status": "success", "uid": uid, "farm_lists": farm_lists}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+        except Exception as e:
+    print("LOGIN ERROR:", str(e))  # füge Logging hinzu
+    return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/start")
 async def start(
