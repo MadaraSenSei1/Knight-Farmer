@@ -1,7 +1,11 @@
 services:
   - type: web
-    name: madara-farming-bot
+    name: travian-bot
     env: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port 8000
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+    envVars:
+      - key: PAYPAL_CLIENT_ID
+        value: YOUR_CLIENT_ID
+      - key: BOT_PRICE_EUR
+        value: "5"
