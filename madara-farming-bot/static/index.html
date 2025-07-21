@@ -2,118 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Travian Farming Bot</title>
-  <script src="https://www.paypal.com/sdk/js?client-id=AccZS6kT4eWWJklsYhrFFhVPhc5ecbmSZext6BFu0GTtwJETs8kyU6TA_0IUlyazAfHwWvwiaQI2wQto&currency=EUR"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 text-gray-800">
-  <div class="max-w-xl mx-auto mt-10 p-6 bg-white rounded shadow">
-    <h1 class="text-2xl font-bold mb-4">Travian Bot Login</h1>
-    <form id="login-form" class="space-y-4">
+<body class="bg-gray-100">
+  <div class="max-w-md mx-auto mt-10 p-6 bg-white shadow-md rounded-xl">
+    <h1 class="text-2xl font-bold mb-6 text-center">Travian Farming Bot</h1>
+    
+    <div id="status" class="text-sm text-red-600 mb-4 text-center hidden"></div>
+
+    <form id="loginForm" class="space-y-4">
       <input type="text" id="username" placeholder="Username" class="w-full p-2 border rounded" required />
       <input type="password" id="password" placeholder="Password" class="w-full p-2 border rounded" required />
-      <input type="text" id="server_url" placeholder="Server URL (e.g. https://ts1.travian.com)" class="w-full p-2 border rounded" required />
+      <input type="text" id="server_url" placeholder="https://tsX.travian.com" class="w-full p-2 border rounded" required />
+
       <input type="text" id="proxy_ip" placeholder="Proxy IP (optional)" class="w-full p-2 border rounded" />
       <input type="text" id="proxy_port" placeholder="Proxy Port (optional)" class="w-full p-2 border rounded" />
       <input type="text" id="proxy_user" placeholder="Proxy Username (optional)" class="w-full p-2 border rounded" />
       <input type="password" id="proxy_pass" placeholder="Proxy Password (optional)" class="w-full p-2 border rounded" />
-      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Login</button>
+
+      <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+        Login
+      </button>
     </form>
 
-    <div id="paypal-button-container" class="my-6 hidden"></div>
-
-    <div id="bot-controls" class="hidden mt-6">
-      <h2 class="text-xl font-semibold">Farm Lists</h2>
-      <ul id="farm-lists" class="list-disc ml-6"></ul>
-
-      <div class="mt-4">
-        <label>Min Interval (sec): <input type="number" id="min_interval" class="p-1 border rounded" /></label><br />
-        <label>Max Interval (sec): <input type="number" id="max_interval" class="p-1 border rounded" /></label><br />
-        <label><input type="checkbox" id="random_offset" /> ±30s Random Offset</label>
-      </div>
-
-      <div class="mt-4">
-        <button id="start-bot" class="bg-green-500 text-white px-4 py-2 rounded">Start Bot</button>
-        <button id="stop-bot" class="bg-red-500 text-white px-4 py-2 rounded ml-2">Stop Bot</button>
-      </div>
-    </div>
+    <div id="response" class="mt-4 text-green-700 text-sm hidden text-center"></div>
   </div>
 
   <script>
-    let accountId = null;
-
-    document.getElementById("login-form").addEventListener("submit", async (e) => {
+    document.getElementById("loginForm").addEventListener("submit", async function (e) {
       e.preventDefault();
-      const formData = new FormData(e.target);
+      const status = document.getElementById("status");
+      const responseDiv = document.getElementById("response");
+      status.classList.add("hidden");
+      responseDiv.classList.add("hidden");
 
-      const res = await fetch("/login", {
-        method: "POST",
-        body: formData,
-      });
+      const formData = new URLSearchParams();
+      formData.append("username", document.getElementById("username").value);
+      formData.append("password", document.getElementById("password").value);
+      formData.append("server_url", document.getElementById("server_url").value);
+      formData.append("proxy_ip", document.getElementById("proxy_ip").value);
+      formData.append("proxy_port", document.getElementById("proxy_port").value);
+      formData.append("proxy_user", document.getElementById("proxy_user").value);
+      formData.append("proxy_pass", document.getElementById("proxy_pass").value);
 
-      const data = await res.json();
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData
+        });
 
-      if (data.uid) {
-        accountId = data.uid;
-        document.getElementById("paypal-button-container").classList.remove("hidden");
-        renderPayPal(data.uid);
-      } else {
-        alert("Login failed: " + data.error);
-      }
-    });
+        const data = await res.json();
 
-    function renderPayPal(uid) {
-      paypal.Buttons({
-        createOrder: function(data, actions) {
-          return actions.order.create({
-            purchase_units: [{ amount: { value: "5.00" } }],
-          });
-        },
-        onApprove: async function(data, actions) {
-          const capture = await actions.order.capture();
-          const res = await fetch("/pay", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ uid: uid, order_id: capture.id })
-          });
-          const result = await res.json();
-          if (result.success) {
-            document.getElementById("paypal-button-container").classList.add("hidden");
-            document.getElementById("bot-controls").classList.remove("hidden");
-            const listEl = document.getElementById("farm-lists");
-            result.farm_lists.forEach(f => {
-              const li = document.createElement("li");
-              li.textContent = `${f.name} (ID: ${f.id})`;
-              listEl.appendChild(li);
-            });
-          } else {
-            alert("Payment failed");
-          }
+        if (res.ok) {
+          responseDiv.textContent = `Login erfolgreich. Bot-ID: ${data.uid}`;
+          responseDiv.classList.remove("hidden");
+        } else {
+          status.textContent = `Login fehlgeschlagen: ${data.error}`;
+          status.classList.remove("hidden");
         }
-      }).render("#paypal-button-container");
-    }
-
-    document.getElementById("start-bot").addEventListener("click", async () => {
-      const min = document.getElementById("min_interval").value;
-      const max = document.getElementById("max_interval").value;
-      const rand = document.getElementById("random_offset").checked;
-      const form = new FormData();
-      form.append("uid", accountId);
-      form.append("min_interval", min);
-      form.append("max_interval", max);
-      form.append("random_offset", rand);
-      const res = await fetch("/start", { method: "POST", body: form });
-      const data = await res.json();
-      alert(data.status || data.error);
-    });
-
-    document.getElementById("stop-bot").addEventListener("click", async () => {
-      const form = new FormData();
-      form.append("uid", accountId);
-      const res = await fetch("/stop", { method: "POST", body: form });
-      const data = await res.json();
-      alert(data.status || data.error);
+      } catch (err) {
+        status.textContent = `Fehler beim Senden: ${err.message}`;
+        status.classList.remove("hidden");
+      }
     });
   </script>
 </body>
