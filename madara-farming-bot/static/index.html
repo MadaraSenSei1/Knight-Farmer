@@ -153,27 +153,34 @@
 </body>
 </html>
 <script>
-  document.querySelector("form").addEventListener("submit", async function (e) {
-    e.preventDefault();
+  
+ document.querySelector("form").addEventListener("submit", async function (e) {
+  e.preventDefault();
 
-    const formData = new FormData(e.target);
-    const data = {};
-    formData.forEach((value, key) => (data[key] = value));
-
-    try {
-      const response = await fetch("/login", {
-  method: "POST",
-  body: formData
-});
-      const result = await response.json();
-      if (response.ok) {
-        alert("Login erfolgreich! UID: " + result.uid);
-        // Hier kannst du z.B. den Bot-Startbereich anzeigen
-      } else {
-        alert("Login fehlgeschlagen: " + (result.error || "Unbekannter Fehler"));
-      }
-    } catch (err) {
-      alert("Verbindungsfehler: " + err.message);
-    }
+  const formData = new FormData(e.target);
+  const data = {};
+  formData.forEach((value, key) => {
+    data[key] = value;
   });
+
+  try {
+    const response = await fetch("/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+    if (response.ok && result.success) {
+      alert("Login erfolgreich! UID: " + result.uid);
+      // hier könnte z. B. das nächste UI erscheinen
+    } else {
+      alert("Login fehlgeschlagen: " + (result.error || "Unbekannter Fehler"));
+    }
+  } catch (err) {
+    alert("Verbindungsfehler: " + err.message);
+  }
+});
 </script>
