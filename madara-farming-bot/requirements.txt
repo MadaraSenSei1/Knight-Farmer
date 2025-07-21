@@ -6,3 +6,5 @@ aiohttp
 requests
 python-multipart
 webdriver-manager
+httpx
+jinja2
