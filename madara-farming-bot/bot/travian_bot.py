@@ -1,7 +1,7 @@
 import time
 import random
 import threading
-import uuid
+from uuid import uuid4
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -88,6 +88,16 @@ def stop_bot(uid):
         bots[uid]["running"] = False
         if bots[uid]["thread"]:
             bots[uid]["thread"].join()
+            
+def travian_login(username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass):
+    uid = str(uuid4())
+    create_bot(uid, username, password, server_url, {
+        "ip": proxy_ip,
+        "port": proxy_port,
+        "user": proxy_user,
+        "pass": proxy_pass,
+    })
+    return uid
 
 def get_next_raid_timestamp(uid):
     return next_raid_times.get(uid)
