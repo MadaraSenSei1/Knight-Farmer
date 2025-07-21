@@ -28,9 +28,23 @@ def create_bot(uid, username, password, server_url, proxy=None):
     driver.get(server_url)
 
     # Travian Login
-    driver.find_element(By.NAME, "name").send_keys(username)
-    driver.find_element(By.NAME, "password").send_keys(password)
-    driver.find_element(By.CLASS_NAME, "login").click()
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+wait = WebDriverWait(driver, 10)
+
+# Benutzername eingeben
+username_field = wait.until(EC.presence_of_element_located((By.ID, "loginForm_username")))
+username_field.send_keys(username)
+
+# Passwort eingeben
+password_field = driver.find_element(By.ID, "loginForm_password")
+password_field.send_keys(password)
+
+# Login-Button klicken
+login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+login_button.click()
 
     time.sleep(5)
 
