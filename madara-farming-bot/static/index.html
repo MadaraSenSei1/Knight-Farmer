@@ -3,158 +3,149 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Travian Farming Bot</title>
+  <title>Knight Farmer Bot</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.paypal.com/sdk/js?client-id=AccZS6kT4eWWJklsYhrFFhVPhc5ecbmSZext6BFu0GTtwJETs8kyU6TA_0IUlyazAfHwWvwiaQI2wQto&currency=EUR"></script>
 </head>
-<body class="bg-gray-100 text-gray-800">
-  <div class="max-w-xl mx-auto p-6 bg-white rounded shadow mt-10">
-    <h1 class="text-2xl font-bold mb-6">Travian Farming Bot</h1>
+<body class="bg-gray-900 text-white p-6">
+  <div class="max-w-2xl mx-auto">
+    <h1 class="text-3xl font-bold mb-4">Knight Farmer Bot</h1>
 
-    <form id="loginForm" class="space-y-4">
-      <input type="text" placeholder="Username" name="username" required class="w-full p-2 border rounded" />
-      <input type="password" placeholder="Password" name="password" required class="w-full p-2 border rounded" />
-      <input type="text" placeholder="Server URL (e.g. https://ts9.travian.com)" name="server_url" required class="w-full p-2 border rounded" />
+    <!-- Login -->
+    <form id="loginForm" class="space-y-3">
+      <input type="text" name="username" placeholder="Travian Username" class="w-full p-2 rounded bg-gray-800" required />
+      <input type="password" name="password" placeholder="Travian Password" class="w-full p-2 rounded bg-gray-800" required />
+      <input type="text" name="server_url" placeholder="Server URL (e.g. https://ts1.travian.com)" class="w-full p-2 rounded bg-gray-800" required />
 
-      <div class="grid grid-cols-2 gap-2">
-        <input type="text" placeholder="Proxy IP" name="proxy_ip" class="p-2 border rounded" />
-        <input type="text" placeholder="Proxy Port" name="proxy_port" class="p-2 border rounded" />
-        <input type="text" placeholder="Proxy Username" name="proxy_user" class="p-2 border rounded" />
-        <input type="password" placeholder="Proxy Password" name="proxy_pass" class="p-2 border rounded" />
-      </div>
-
-      <button type="submit" class="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700">Login</button>
+      <!-- Optional Proxy -->
+      <input type="text" name="proxy_ip" placeholder="Proxy IP (optional)" class="w-full p-2 rounded bg-gray-800" />
+      <input type="text" name="proxy_port" placeholder="Proxy Port" class="w-full p-2 rounded bg-gray-800" />
+      <input type="text" name="proxy_user" placeholder="Proxy Username" class="w-full p-2 rounded bg-gray-800" />
+      <input type="password" name="proxy_pass" placeholder="Proxy Password" class="w-full p-2 rounded bg-gray-800" />
+      
+      <button type="submit" class="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700">Login</button>
     </form>
 
-    <div id="afterLogin" class="hidden mt-6">
-      <div class="mb-4">
-        <label class="block font-medium mb-1">Farm Lists:</label>
-        <ul id="farmLists" class="list-disc pl-5 text-sm text-gray-700"></ul>
+    <!-- Farm List + Bot -->
+    <div id="botPanel" class="mt-6 hidden">
+      <h2 class="text-xl font-semibold mb-2">Farm Lists</h2>
+      <ul id="farmLists" class="bg-gray-800 p-3 rounded"></ul>
+
+      <!-- Intervall + Timer -->
+      <div class="mt-4 space-y-2">
+        <input id="minInterval" type="number" placeholder="Min Interval (minutes)" class="w-full p-2 rounded bg-gray-800" />
+        <input id="maxInterval" type="number" placeholder="Max Interval (minutes)" class="w-full p-2 rounded bg-gray-800" />
+        <label class="inline-flex items-center">
+          <input type="checkbox" id="randomOffset" class="mr-2" checked />
+          ±30s Random Offset
+        </label>
       </div>
 
-      <div class="mb-4 grid grid-cols-2 gap-2">
-        <input type="number" id="minInterval" placeholder="Min Interval (sec)" class="p-2 border rounded" />
-        <input type="number" id="maxInterval" placeholder="Max Interval (sec)" class="p-2 border rounded" />
+      <!-- PayPal Button -->
+      <div id="paypal-button-container" class="my-4"></div>
+
+      <!-- Bot Controls -->
+      <div class="flex space-x-2 mt-4">
+        <button id="startBot" class="bg-green-600 px-4 py-2 rounded hover:bg-green-700">Start Bot</button>
+        <button id="stopBot" class="bg-red-600 px-4 py-2 rounded hover:bg-red-700">Stop Bot</button>
       </div>
 
-      <label class="inline-flex items-center mb-4">
-        <input type="checkbox" id="randomOffset" class="mr-2" />
-        Random ±30s
-      </label>
-
-      <div id="paypal-button-container" class="mb-4"></div>
-
-      <div class="flex items-center justify-between">
-        <button id="startBtn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Start Bot</button>
-        <button id="stopBtn" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Stop Bot</button>
-        <span id="countdown" class="text-sm text-gray-600 ml-2 hidden"></span>
-      </div>
+      <p id="countdown" class="mt-4 text-yellow-400"></p>
     </div>
   </div>
 
   <script>
     let uid = null;
-    let intervalTimer = null;
+    let paid = false;
 
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-
-      const form = new FormData(e.target);
-      const res = await fetch('/login', {
-        method: 'POST',
-        body: form,
+      const formData = new FormData(e.target);
+      const res = await fetch("/login", {
+        method: "POST",
+        body: formData,
       });
 
       const data = await res.json();
-      if (data.status === 'success') {
+      if (data.uid) {
         uid = data.uid;
-        document.getElementById('loginForm').classList.add('hidden');
-        document.getElementById('afterLogin').classList.remove('hidden');
-
-        const listEl = document.getElementById('farmLists');
-        listEl.innerHTML = '';
-        data.farm_lists.forEach(item => {
-          const li = document.createElement('li');
-          li.textContent = item;
-          listEl.appendChild(li);
+        const list = document.getElementById("farmLists");
+        list.innerHTML = "";
+        data.farm_lists.forEach(name => {
+          const li = document.createElement("li");
+          li.textContent = name;
+          list.appendChild(li);
         });
+        document.getElementById("botPanel").classList.remove("hidden");
       } else {
-        alert('Login failed: ' + (data.error || 'undefined'));
+        alert("Login failed: " + (data.error || "Unknown error"));
       }
     });
 
     paypal.Buttons({
-      createOrder: (data, actions) => {
+      createOrder: function(data, actions) {
         return actions.order.create({
-          purchase_units: [{ amount: { value: "5.00" } }],
+          purchase_units: [{ amount: { value: '5.00' } }]
         });
       },
-      onApprove: async (data, actions) => {
-        await actions.order.capture();
-        await fetch('/payment_success', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uid })
+      onApprove: function(data, actions) {
+        return actions.order.capture().then(function(details) {
+          paid = true;
+          alert("Payment successful! You can now start the bot.");
         });
-        alert("Bezahlung erfolgreich!");
       }
     }).render('#paypal-button-container');
 
-    document.getElementById('startBtn').addEventListener('click', async () => {
-      const min = document.getElementById('minInterval').value;
-      const max = document.getElementById('maxInterval').value;
-      const rand = document.getElementById('randomOffset').checked;
+    document.getElementById("startBot").onclick = async () => {
+      if (!paid) return alert("Please complete payment first.");
 
-      const form = new FormData();
-      form.append('uid', uid);
-      form.append('min_interval', min);
-      form.append('max_interval', max);
-      form.append('random_offset', rand);
+      const min = document.getElementById("minInterval").value;
+      const max = document.getElementById("maxInterval").value;
+      const rand = document.getElementById("randomOffset").checked;
 
-      const res = await fetch('/start', {
-        method: 'POST',
-        body: form,
-      });
+      const formData = new FormData();
+      formData.append("uid", uid);
+      formData.append("min_interval", min);
+      formData.append("max_interval", max);
+      formData.append("random_offset", rand);
 
+      const res = await fetch("/start", { method: "POST", body: formData });
       const data = await res.json();
-      if (data.status === 'running') {
-        startCountdown(parseInt(min));
+
+      if (data.status === "started") {
+        alert("Bot started!");
+        pollCountdown();
       } else {
-        alert("Start fehlgeschlagen: " + (data.error || 'unbekannt'));
+        alert("Start failed: " + data.error);
       }
-    });
+    };
 
-    document.getElementById('stopBtn').addEventListener('click', async () => {
-      const form = new FormData();
-      form.append('uid', uid);
-
-      const res = await fetch('/stop', {
-        method: 'POST',
-        body: form,
-      });
-
+    document.getElementById("stopBot").onclick = async () => {
+      const formData = new FormData();
+      formData.append("uid", uid);
+      const res = await fetch("/stop", { method: "POST", body: formData });
       const data = await res.json();
-      if (data.status === 'stopped') {
-        clearInterval(intervalTimer);
-        document.getElementById('countdown').classList.add('hidden');
-      } else {
-        alert("Stop fehlgeschlagen");
+      if (data.status === "stopped") {
+        alert("Bot stopped.");
+        document.getElementById("countdown").textContent = "";
       }
-    });
+    };
 
-    function startCountdown(seconds) {
-      let remaining = seconds;
-      const countdownEl = document.getElementById('countdown');
-      countdownEl.classList.remove('hidden');
-      countdownEl.textContent = `Next raid in ${remaining}s`;
-
-      intervalTimer = setInterval(() => {
-        remaining--;
-        if (remaining <= 0) {
-          clearInterval(intervalTimer);
-          countdownEl.textContent = "Raiding...";
-        } else {
-          countdownEl.textContent = `Next raid in ${remaining}s`;
+    function pollCountdown() {
+      const el = document.getElementById("countdown");
+      setInterval(async () => {
+        const res = await fetch("/status?uid=" + uid);
+        const data = await res.json();
+        if (data.next_raid) {
+          const now = Math.floor(Date.now() / 1000);
+          const diff = data.next_raid - now;
+          if (diff > 0) {
+            const min = Math.floor(diff / 60);
+            const sec = diff % 60;
+            el.textContent = `Next raid in ${min}m ${sec}s`;
+          } else {
+            el.textContent = "Raid is executing...";
+          }
         }
       }, 1000);
     }
