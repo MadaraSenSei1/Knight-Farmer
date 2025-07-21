@@ -1,12 +1,20 @@
 import time
 import random
 import threading
+import uuid
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+__all__ = ["travian_login", "create_bot", "start_bot", "stop_bot", "get_next_raid_timestamp"]
 
 bots = {}
 next_raid_times = {}
+
+def travian_login(username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass):
+    uid = str(uuid.uuid4())
+    proxy = f"http://{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}"
+    create_bot(uid, username, password, server_url, proxy)
+    return uid
 
 def create_bot(uid, username, password, server_url, proxy=None):
     options = Options()
