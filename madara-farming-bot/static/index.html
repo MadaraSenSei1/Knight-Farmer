@@ -2,94 +2,119 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Travian Bot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Travian Farming Bot</title>
   <script src="https://www.paypal.com/sdk/js?client-id=AccZS6kT4eWWJklsYhrFFhVPhc5ecbmSZext6BFu0GTtwJETs8kyU6TA_0IUlyazAfHwWvwiaQI2wQto&currency=EUR"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>Travian Farming Bot</h1>
+<body class="bg-gray-100 text-gray-800">
+  <div class="max-w-xl mx-auto mt-10 p-6 bg-white rounded shadow">
+    <h1 class="text-2xl font-bold mb-4">Travian Bot Login</h1>
+    <form id="login-form" class="space-y-4">
+      <input type="text" id="username" placeholder="Username" class="w-full p-2 border rounded" required />
+      <input type="password" id="password" placeholder="Password" class="w-full p-2 border rounded" required />
+      <input type="text" id="server_url" placeholder="Server URL (e.g. https://ts1.travian.com)" class="w-full p-2 border rounded" required />
+      <input type="text" id="proxy_ip" placeholder="Proxy IP (optional)" class="w-full p-2 border rounded" />
+      <input type="text" id="proxy_port" placeholder="Proxy Port (optional)" class="w-full p-2 border rounded" />
+      <input type="text" id="proxy_user" placeholder="Proxy Username (optional)" class="w-full p-2 border rounded" />
+      <input type="password" id="proxy_pass" placeholder="Proxy Password (optional)" class="w-full p-2 border rounded" />
+      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Login</button>
+    </form>
 
-  <form id="loginForm">
-    <input type="text" name="username" placeholder="Travian Username" required />
-    <input type="password" name="password" placeholder="Travian Password" required />
-    <input type="text" name="server_url" placeholder="https://ts1.travian.de" required />
-    <h4>Optional Proxy:</h4>
-    <input type="text" name="proxy_ip" placeholder="Proxy IP">
-    <input type="text" name="proxy_port" placeholder="Proxy Port">
-    <input type="text" name="proxy_user" placeholder="Proxy Username">
-    <input type="password" name="proxy_pass" placeholder="Proxy Password">
-    <button type="submit">Login</button>
-  </form>
+    <div id="paypal-button-container" class="my-6 hidden"></div>
 
-  <div id="paypal-button-container" style="display:none;"></div>
-  <div id="farmLists" style="margin-top:20px;"></div>
+    <div id="bot-controls" class="hidden mt-6">
+      <h2 class="text-xl font-semibold">Farm Lists</h2>
+      <ul id="farm-lists" class="list-disc ml-6"></ul>
 
-  <div id="botControl" style="display:none;">
-    <h3>Bot Control</h3>
-    <input type="number" id="min_interval" placeholder="Min (min)" />
-    <input type="number" id="max_interval" placeholder="Max (min)" />
-    <label><input type="checkbox" id="random_offset"> ±30s zufällig</label>
-    <button onclick="startBot()">Start Bot</button>
-    <button onclick="stopBot()">Stop Bot</button>
-    <p id="statusText"></p>
+      <div class="mt-4">
+        <label>Min Interval (sec): <input type="number" id="min_interval" class="p-1 border rounded" /></label><br />
+        <label>Max Interval (sec): <input type="number" id="max_interval" class="p-1 border rounded" /></label><br />
+        <label><input type="checkbox" id="random_offset" /> ±30s Random Offset</label>
+      </div>
+
+      <div class="mt-4">
+        <button id="start-bot" class="bg-green-500 text-white px-4 py-2 rounded">Start Bot</button>
+        <button id="stop-bot" class="bg-red-500 text-white px-4 py-2 rounded ml-2">Stop Bot</button>
+      </div>
+    </div>
   </div>
 
   <script>
-    let uid = null;
-    let paid = false;
+    let accountId = null;
 
-    document.getElementById('loginForm').onsubmit = async function (e) {
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
-      const res = await fetch('/login', { method: 'POST', body: formData });
+
+      const res = await fetch("/login", {
+        method: "POST",
+        body: formData,
+      });
+
       const data = await res.json();
 
       if (data.uid) {
-        uid = data.uid;
-        document.getElementById('farmLists').innerHTML = `<pre>${JSON.stringify(data.farm_lists, null, 2)}</pre>`;
-        document.getElementById('paypal-button-container').style.display = 'block';
-
-        paypal.Buttons({
-          createOrder: function(data, actions) {
-            return actions.order.create({
-              purchase_units: [{ amount: { value: '5.00' } }]
-            });
-          },
-          onApprove: function(data, actions) {
-            return actions.order.capture().then(function(details) {
-              paid = true;
-              document.getElementById('botControl').style.display = 'block';
-              alert('Bezahlung erfolgreich. Bot kann jetzt gestartet werden.');
-            });
-          }
-        }).render('#paypal-button-container');
+        accountId = data.uid;
+        document.getElementById("paypal-button-container").classList.remove("hidden");
+        renderPayPal(data.uid);
       } else {
-        alert(data.error || 'Login fehlgeschlagen');
+        alert("Login failed: " + data.error);
       }
-    };
+    });
 
-    async function startBot() {
-      if (!paid) return alert('Bitte zuerst bezahlen');
-      const min = document.getElementById('min_interval').value;
-      const max = document.getElementById('max_interval').value;
-      const random = document.getElementById('random_offset').checked;
-      const formData = new FormData();
-      formData.append('uid', uid);
-      formData.append('min_interval', min);
-      formData.append('max_interval', max);
-      formData.append('random_offset', random);
-      const res = await fetch('/start', { method: 'POST', body: formData });
-      const data = await res.json();
-      document.getElementById('statusText').innerText = data.status || data.error;
+    function renderPayPal(uid) {
+      paypal.Buttons({
+        createOrder: function(data, actions) {
+          return actions.order.create({
+            purchase_units: [{ amount: { value: "5.00" } }],
+          });
+        },
+        onApprove: async function(data, actions) {
+          const capture = await actions.order.capture();
+          const res = await fetch("/pay", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid: uid, order_id: capture.id })
+          });
+          const result = await res.json();
+          if (result.success) {
+            document.getElementById("paypal-button-container").classList.add("hidden");
+            document.getElementById("bot-controls").classList.remove("hidden");
+            const listEl = document.getElementById("farm-lists");
+            result.farm_lists.forEach(f => {
+              const li = document.createElement("li");
+              li.textContent = `${f.name} (ID: ${f.id})`;
+              listEl.appendChild(li);
+            });
+          } else {
+            alert("Payment failed");
+          }
+        }
+      }).render("#paypal-button-container");
     }
 
-    async function stopBot() {
-      const formData = new FormData();
-      formData.append('uid', uid);
-      const res = await fetch('/stop', { method: 'POST', body: formData });
+    document.getElementById("start-bot").addEventListener("click", async () => {
+      const min = document.getElementById("min_interval").value;
+      const max = document.getElementById("max_interval").value;
+      const rand = document.getElementById("random_offset").checked;
+      const form = new FormData();
+      form.append("uid", accountId);
+      form.append("min_interval", min);
+      form.append("max_interval", max);
+      form.append("random_offset", rand);
+      const res = await fetch("/start", { method: "POST", body: form });
       const data = await res.json();
-      document.getElementById('statusText').innerText = data.status || data.error;
-    }
+      alert(data.status || data.error);
+    });
+
+    document.getElementById("stop-bot").addEventListener("click", async () => {
+      const form = new FormData();
+      form.append("uid", accountId);
+      const res = await fetch("/stop", { method: "POST", body: form });
+      const data = await res.json();
+      alert(data.status || data.error);
+    });
   </script>
 </body>
 </html>
