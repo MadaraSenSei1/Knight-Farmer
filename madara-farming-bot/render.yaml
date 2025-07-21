@@ -1,11 +1,9 @@
 services:
   - type: web
-    name: travian-bot
+    name: travian-farming-bot
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port 8000"
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port 10000
     envVars:
-      - key: PAYPAL_CLIENT_ID
-        value: YOUR_CLIENT_ID
-      - key: BOT_PRICE_EUR
-        value: "5"
+      - key: PYTHON_VERSION
+        value: "3.10"
