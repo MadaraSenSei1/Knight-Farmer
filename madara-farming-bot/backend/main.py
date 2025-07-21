@@ -1,18 +1,16 @@
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
 import os
 from dotenv import load_dotenv
-
 from bot.travian_bot import create_bot, start_bot, stop_bot
 
 load_dotenv()
-
 app = FastAPI()
 
-# CORS aktivieren
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,18 +18,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Bot-Status-Tracker
-active_bots = {}
-paid_users = set()  # später durch Bezahlfunktion ersetzen
+# Static files (Frontend)
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
-@app.get("/")
-async def root():
-    return {"message": "Travian Bot Backend läuft"}
-
+# Status Check
 @app.get("/status")
 async def status():
     return {"message": "Travian Bot Backend läuft"}
 
+# Speicher für aktive Bots
+active_bots = {}
+paid_users = set()
+
+# Login Endpoint
 @app.post("/login")
 async def login(
     username: str = Form(...),
@@ -47,23 +46,26 @@ async def login(
 
     try:
         if proxy_ip and proxy_port:
-            if proxy_user:
-                proxy = f"http://{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}"
-            else:
-                proxy = f"http://{proxy_ip}:{proxy_port}"
+            proxy = f"http://{proxy_user}:{proxy_pass}@{proxy_ip}:{proxy_port}" if proxy_user else f"http://{proxy_ip}:{proxy_port}"
+            print(f"[LOGIN] Mit Proxy: {proxy}")
+        else:
+            print("[LOGIN] Ohne Proxy")
 
-        print(f"[LOGIN] UID={uid}, SERVER={server_url}, PROXY={proxy}")
+        # Starte Bot
         farm_lists = create_bot(uid, username, password, server_url, proxy)
+
         active_bots[uid] = {"status": "initialized"}
         return {
             "status": "success",
             "uid": uid,
             "farm_lists": farm_lists
         }
+
     except Exception as e:
-        print("LOGIN ERROR:", str(e))
+        print("[LOGIN ERROR]:", str(e))
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# Bot starten
 @app.post("/start")
 async def start(
     uid: str = Form(...),
@@ -72,7 +74,7 @@ async def start(
     random_offset: bool = Form(False)
 ):
     if uid not in active_bots:
-        return JSONResponse(status_code=404, content={"error": "Bot nicht gefunden"})
+        return JSONResponse(status_code=403, content={"error": "Ungültige UID"})
 
     try:
         start_bot(uid, min_interval, max_interval, random_offset)
@@ -81,6 +83,7 @@ async def start(
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# Bot stoppen
 @app.post("/stop")
 async def stop(uid: str = Form(...)):
     try:
