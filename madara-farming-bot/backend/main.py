@@ -1,10 +1,20 @@
 from fastapi import FastAPI, Form, Request
+from pydantic import BaseModel
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from uuid import uuid4
 from bot.travian_bot import create_bot, start_bot, stop_bot, get_next_raid_timestamp
 
+class LoginData(BaseModel):
+    username: str
+    password: str
+    server_url: str
+    proxy_ip: str
+    proxy_port: str
+    proxy_user: str
+    proxy_pass: str
+    
 app = FastAPI()
 
 # Serve frontend
@@ -22,28 +32,35 @@ app.add_middleware(
 # Speichert aktive Bots
 active_bots = {}
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+
 @app.get("/")
 def read_index():
     with open("static/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read(), status_code=200)
 
 @app.post("/login")
-async def login(data: dict):
-    # Hole alle Daten aus dem `data`-Dict
-    username = data.get("username")
-    password = data.get("password")
-    server_url = data.get("server_url")
-    proxy_ip = data.get("proxy_ip")
-    proxy_port = data.get("proxy_port")
-    proxy_user = data.get("proxy_user")
-    proxy_pass = data.get("proxy_pass")
-
-    # Logik: Login in Travian durchführen
+async def login(
+    username: str = Form(...),
+    password: str = Form(...),
+    server_url: str = Form(...),
+    proxy_ip: str = Form(...),
+    proxy_port: str = Form(...),
+    proxy_user: str = Form(...),
+    proxy_pass: str = Form(...)
+):
     try:
         uid = await travian_login(username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass)
-        return { "status": "success", "uid": uid }
+        farm_lists = create_bot(uid, username, password, server_url, proxy_ip, proxy_port, proxy_user, proxy_pass)
+        active_bots[uid] = {"status": "initialized"}
+        return {"status": "success", "uid": uid, "farm_lists": farm_lists}
     except Exception as e:
-        return { "status": "error", "error": str(e) }
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
     try:
         farm_lists = create_bot(uid, username, password, server_url, proxy)
