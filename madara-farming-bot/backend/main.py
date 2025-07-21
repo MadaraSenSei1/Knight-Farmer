@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
@@ -85,3 +86,9 @@ async def status(uid: str):
         return JSONResponse(status_code=404, content={"error": "UID nicht gefunden"})
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
+        app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    with open("static/index.html", "r", encoding="utf-8") as f:
+        return f.read()
