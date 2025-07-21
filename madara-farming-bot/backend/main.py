@@ -35,7 +35,6 @@ def read_index():
         return HTMLResponse(content=f.read(), status_code=200)
 
 @app.post("/login", response_class=JSONResponse)
-const formData = new FormData(form);
 fetch("/login", {
   method: "POST",
   body: formData,
